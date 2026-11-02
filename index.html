@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>健康保衛戰</title>
+<style>html,body{margin:0;height:100%;background:#10141c}body{display:flex;justify-content:center;align-items:center}canvas{max-width:100%;max-height:100vh;cursor:crosshair;touch-action:none}</style></head>
+<body><canvas id="c" width="800" height="700"></canvas>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d'),W=800,H=700,F='"Microsoft JhengHei","PingFang TC",sans-serif';
+let mx=0,my=0,K={},P=[],cl=null,clicks=[],scene='menu',diff=0,vol=1,AC,S={},imgs={};
+const pos=e=>{const r=C.getBoundingClientRect();mx=(e.clientX-r.left)*W/r.width;my=(e.clientY-r.top)*H/r.height};
+C.addEventListener('pointermove',pos);
+C.addEventListener('pointerdown',e=>{pos(e);clicks.push(1)});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();K[k]=1;P.push(k);if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault()});
+addEventListener('keyup',e=>delete K[e.key.toLowerCase()]);
+const R=(a,b)=>a+Math.random()*(b-a),D=Math.hypot,cp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function I(n){if(!(n in imgs)){imgs[n]=null;const i=new Image();i.onload=()=>imgs[n]=i;i.src='img/'+n+'.png'}return imgs[n]}
+function snd(f=440){try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=.05*vol;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.06)}catch(e){}}
+function T(s,x,y,z=18,c='#fff',a='center'){X.font=z+'px '+F;X.fillStyle=c;X.textAlign=a;X.textBaseline='middle';X.fillText(s,x,y)}
+function box(x,y,w,h,f,s,r=8){X.beginPath();X.roundRect(x,y,w,h,r);if(f){X.fillStyle=f;X.fill()}if(s){X.strokeStyle=s;X.lineWidth=2;X.stroke()}}
+function circ(x,y,r,f,s){X.beginPath();X.arc(x,y,r,0,7);if(f){X.fillStyle=f;X.fill()}if(s){X.strokeStyle=s;X.lineWidth=2;X.stroke()}}
+function line(a,b,c,d,col,w){X.beginPath();X.moveTo(a,b);X.lineTo(c,d);X.strokeStyle=col;X.lineWidth=w;X.stroke()}
+function spr(n,x,y,w,h,col){const i=I(n);if(i)X.drawImage(i,x-w/2,y-h/2,w,h);else circ(x,y,w/2,col,'#fff')}
+function B(x,y,w,h,s,z=20){const o=mx>x&&mx<x+w&&my>y&&my<y+h;box(x,y,w,h,o?'#ff0':'#333','#fff',10);T(s,x+w/2,y+h/2,z,o?'#000':'#fff');return o&&cl}
+function bar(x,y,w,v,m,c){box(x,y,w,10,'#222','#fff',2);box(x,y,w*Math.max(0,v/m),10,c,null,2)}
+function wrap(s,x,y,w,z,c,g=6){X.font=z+'px '+F;let l='';for(const ch of s){if(X.measureText(l+ch).width>w){T(l,x,y,z,c,'left');y+=z+g;l=ch}else l+=ch}T(l,x,y,z,c,'left');return y+z+g}
+function bg(){const i=I('background');if(i)X.drawImage(i,0,0,W,H);else{const g=X.createLinearGradient(0,0,0,H);g.addColorStop(0,'#1a2a44');g.addColorStop(1,'#2a1420');X.fillStyle=g;X.fillRect(0,0,W,H)}}
+
+// ---------- 主選單 / 選關 / 設定 ----------
+S.menu=()=>{bg();T('健康防衛戰!',W/2,140,68);
+ if(B(300,320,200,50,'遊戲開始',24)||P.includes(' '))scene='select';
+ else if(B(300,385,200,45,'病毒百科 [W]',18)||P.includes('w'))scene='wiki';
+ else if(B(300,445,200,45,'設定 [O]',18)||P.includes('o'))scene='set';
+ T('也可以按 SPACE 直接開始遊戲',W/2,570,16,'#aaa')};
+S.select=()=>{bg();X.fillStyle='#0008';X.fillRect(0,0,W,H);T('請選擇要防禦的器官 (ESC 返回)',W/2,90,28,'#b4dcff');
+ const o=[['肺臟 — 點擊防守戰',()=>startLungs(1)],['腸部 — 塔防戰',startTD],['胃部 — 吞噬生存戰',startSurv],['大腦（未解鎖）'],['肝臟（未解鎖）']];
+ o.forEach((a,i)=>{if(B(250,160+i*90,300,65,a[0],20)&&a[1]){a[1]();}});
+ if(P.includes('escape'))scene='menu'};
+S.set=()=>{bg();X.fillStyle='#0009';X.fillRect(0,0,W,H);T('--- 遊戲設定 ---',W/2,80,42,'#ff0');
+ T('遊戲難度',W/2,200,24);
+ if(B(200,240,180,50,(diff==0?'● ':'')+'簡單模式',22))diff=0;
+ if(B(420,240,180,50,(diff==1?'● ':'')+'困難模式',22))diff=1;
+ T('困難：敵人血量×1.5、速度更快、目標分數更高',W/2,330,15,'#aaa');
+ if(B(300,380,200,50,'音效：'+(vol?'開':'關'),20))vol=vol?0:1;
+ if(B(300,600,200,45,'返回主畫面',20)||P.includes('escape'))scene='menu'};
+
+// ---------- 肺部防守戰 ----------
+let L;const IN=['shield','soap','alcohol','dmg'],NM={shield:'疫苗',soap:'肥皂',alcohol:'酒精',dmg:'強效'};
+function startLungs(lv){L={lv,rocks:[],fx:[],hp:100,lives:3,score:0,st:0,dmg:25,msg:'',mt:0,inv:{shield:1,soap:1,alcohol:1,dmg:1},tgt:diff?2000:500};scene='lungs'}
+function mk(){const lv=L.lv,h=diff?1.5:1,s=diff?1.5:0,k=lv==1?.6:1;
+ L.rocks.push(Math.random()>.3?{t:'rhino',r:25,x:R(30,770),y:R(-180,-100),vy:(R(1,3)+Math.min(3,(lv-1)*.5)+s)*k,vx:Math.floor(R(-2,2)),hp:Math.floor((10+lv*5)*h)}
+ :{t:'para',r:35,x:R(40,760),y:R(-150,-100),vy:(R(2,4)+Math.min(lv*.5,2)+s*.8)*k,vx:[-3,-2,2,3][Math.random()*4|0]*(1+Math.min(lv*.1,.5)),hp:Math.floor((30+lv*10)*h),coat:1})}
+function hit(o,d){if(o.coat)d=Math.max(1,d>>2);o.hp-=d;L.fx.push({s:''+d,x:o.x,y:o.y,c:'#ff0',a:1});
+ if(o.hp<=0&&!o.dead){o.dead=1;const p=o.t=='para'?100:o.r;L.score+=p;L.fx.push({s:'+'+p,x:o.x+25,y:o.y,c:'#0f0',a:1});snd(120);
+  if(Math.random()>.9){const k=IN[Math.random()*4|0];L.inv[k]++;L.fx.push({s:'+1 '+NM[k],x:o.x,y:o.y-25,c:'#0cf',a:1})}}}
+function use(k){const l=L;if(!l.inv[k])return;let ok=1,m='';
+ if(k=='shield')l.hp=Math.min(100,l.hp+50);else if(k=='dmg')l.dmg+=3;
+ else if(k=='soap'){const t=l.rocks.filter(o=>o.t=='rhino');if(t.length){t.forEach(o=>hit(o,o.hp));m='肥皂洗掉了所有鼻病毒！'}else{ok=0;m='畫面上沒有鼻病毒，肥皂先留著！'}}
+ else{const t=l.rocks.filter(o=>o.coat);if(t.length){t.forEach(o=>o.coat=0);m='酒精拆掉了病毒的外套！'}else{ok=0;m='沒有穿外套的病毒，酒精先留著！'}}
+ if(ok)l.inv[k]--;if(m){l.msg=m;l.mt=100}}
+S.lungs=()=>{const l=L;bg();
+ if(P.includes('escape')||B(700,75,90,32,'返回',18)){scene='select';return}
+ if(l.st==0){
+  while(l.rocks.length<6+l.lv*2)mk();
+  l.rocks.forEach(o=>{o.y+=o.vy;o.x+=o.vx;
+   if(o.t=='para'&&(o.x<o.r||o.x>W-o.r))o.vx*=-1;
+   if(o.t=='rhino'&&(o.x<-50||o.x>W+50)){o.x=R(30,770);o.y=R(-100,-40)}
+   if(o.y>H){l.hp-=o.r;o.dead=1;snd(80)}});
+  l.rocks=l.rocks.filter(o=>!o.dead);
+  if(l.hp<=0){l.lives--;l.hp=100;if(l.lives<=0)l.st=2}
+  if(l.score>=l.tgt){l.st=3;l.rocks=[]}
+  IN.forEach((k,i)=>{if(P.includes(''+(i+1)))use(k)});
+ }
+ if(cl){
+  if(l.st==2||l.st==3){if(l.st==3&&l.lv<2)startLungs(2);else scene='menu'}
+  else{const s=IN.findIndex((k,i)=>mx>30+i*52&&mx<72+i*52&&my>15&&my<57);
+   if(s>=0)use(IN[s]);
+   else{snd(660);l.rocks.filter(o=>D(o.x-mx,o.y-my)<o.r+8).forEach(o=>hit(o,l.dmg));l.rocks=l.rocks.filter(o=>!o.dead)}}}
+ l.rocks.forEach(o=>{if(o.t=='rhino')spr('rock0',o.x,o.y,50,50,'#00a8e0');else spr('soldier',o.x,o.y,80,80,o.coat?'#d80':'#2a2');
+  if(o.coat)circ(o.x,o.y,o.r+3,null,'#ffa500');
+  T(o.t=='rhino'?'鼻病毒':o.coat?'副流感·外套':'副流感',o.x,o.y-o.r-10,12,o.t=='rhino'?'#0cf':o.coat?'#fa0':'#0f0')});
+ l.fx.forEach(f=>{f.y-=1.5;f.a-=.02;X.globalAlpha=Math.max(0,f.a);T(f.s,f.x,f.y,20,f.c);X.globalAlpha=1});l.fx=l.fx.filter(f=>f.a>0);
+ IN.forEach((k,i)=>{const x=30+i*52;box(x,15,42,42,'#14141c','#a0a0b4',2);T(''+(i+1),x+8,24,10,'#0cf');T(NM[k],x+21,70,11,'#b4b4be');if(l.inv[k])T('×'+l.inv[k],x+21,40,14,'#ff0')});
+ T('SCORE: '+l.score+' / '+l.tgt,680,25,18);T('LV: '+l.lv+(diff?'（困難）':'（簡單）'),680,50,16,'#ff0');T('DMG: '+l.dmg,560,50,16,'#fa0');
+ T('免疫防線強度',100,H-55,14,'#0cf');bar(30,H-35,150,l.hp,100,l.hp>30?'#0c0':'#f00');line(0,H-6,W,H-6,l.hp>30?'#0f0':'#f00',6);
+ T('核心細胞 ♥×'+l.lives,W-90,H-35,16);
+ if(l.mt>0){l.mt--;box(W/2-200,H/2-20,400,40,'#0008');T(l.msg,W/2,H/2,20,'#ff0')}
+ if(l.st==3){box(170,280,460,140,'#0a1914','#0f0',12);T('【 第 '+l.lv+' 關 通關成功 】',W/2,320,28,'#ff0');T(l.lv<2?'— 點擊繼續下一關 —':'— 全部通關！點擊返回主畫面 —',W/2,380,16,'#0cf')}
+ if(l.st==2){X.fillStyle='#000c';X.fillRect(0,0,W,H);T('GAME OVER',W/2,230,64,'#f33');T('FINAL SCORE: '+l.score,W/2,330,32);T('點擊回到主選單',W/2,430,22)}};
+
+// ---------- 吞噬生存戰 ----------
+let V;const WW=1600,WH=1200;
+const v1=()=>({x:R(50,WW-50),y:R(50,WH-50),r:16});
+function startSurv(){V={p:{x:800,y:600,r:24,hp:100,mh:100,xp:0,mx:100,lv:1,sc:0,cd:0},a:[],e:[],bl:[],ls:[],boss:null,t:0,warn:0,w:false,over:0};for(let i=0;i<25;i++)V.a.push(v1());scene='surv'}
+function sHurt(d){const p=V.p;if(p.cd==0){p.hp=Math.max(0,p.hp-d);p.cd=30;snd(90);if(p.hp<=0)V.over=1}}
+S.surv=()=>{const v=V,p=v.p;
+ if(P.includes('escape')||(v.over&&cl)){scene='select';return}
+ if(!v.over){
+  if(p.cd>0)p.cd--;
+  let dx=(K.d||K.arrowright?1:0)-(K.a||K.arrowleft?1:0),dy=(K.s||K.arrowdown?1:0)-(K.w||K.arrowup?1:0);
+  if(dx&&dy){dx*=.7071;dy*=.7071}p.x=cp(p.x+dx*3.5,p.r,WW-p.r);p.y=cp(p.y+dy*3.5,p.r,WH-p.r);
+  if(p.lv>=14&&!v.w){v.w=true;v.warn=180}if(v.warn>0)v.warn--;
+  if(v.a.length<40&&Math.random()<.3)v.a.push(v1());
+  if(++v.t>=60&&v.e.length<5){const a=Math.random()*6.28;v.e.push({x:cp(p.x+Math.cos(a)*520,20,WW-20),y:cp(p.y+Math.sin(a)*520,20,WH-20),r:20});v.t=0}
+  if(p.lv>=10&&!v.boss)v.boss={x:cp(p.x+300,50,WW-50),y:cp(p.y+300,50,WH-50),r:50,s:0,l:0};
+  const b=v.boss;
+  if(b){const d=D(p.x-b.x,p.y-b.y);if(d>100){b.x+=(p.x-b.x)/d*1.2;b.y+=(p.y-b.y)/d*1.2}
+   if(++b.s>=90){const q=D(p.x-b.x,p.y-b.y)||1;v.bl.push({x:b.x,y:b.y,vx:(p.x-b.x)/q*4,vy:(p.y-b.y)/q*4});b.s=0}
+   if(p.lv>=14&&++b.l>=150){const q=D(p.x-b.x,p.y-b.y)||1;v.ls.push({x:b.x,y:b.y,ex:b.x+(p.x-b.x)/q*800,ey:b.y+(p.y-b.y)/q*800,t:45});b.l=0}
+   if(D(p.x-b.x,p.y-b.y)<p.r+b.r){if(p.lv>=15){p.sc+=2000;v.boss=null;v.over=2}else sHurt(20)}}
+  v.bl.forEach(o=>{o.x+=o.vx;o.y+=o.vy;if(D(p.x-o.x,p.y-o.y)<p.r+8){o.dead=1;sHurt(p.mh*.1)}});v.bl=v.bl.filter(o=>!o.dead&&o.x>-50&&o.x<WW+50&&o.y>-50&&o.y<WH+50);
+  v.ls.forEach(o=>{o.t--;const ax=o.ex-o.x,ay=o.ey-o.y,t=cp(((p.x-o.x)*ax+(p.y-o.y)*ay)/(ax*ax+ay*ay),0,1);if(D(p.x-(o.x+t*ax),p.y-(o.y+t*ay))<=p.r)sHurt(p.mh*.2)});v.ls=v.ls.filter(o=>o.t>0);
+  v.a=v.a.filter(o=>{if(D(p.x-o.x,p.y-o.y)<p.r+o.r){p.sc+=50;p.xp+=20;p.hp=Math.min(p.mh,p.hp+10);snd(520);
+   if(p.lv<15&&p.xp>=p.mx){p.xp=0;p.lv++;p.mh+=25;p.hp=p.mh;p.mx=Math.floor(p.mx*1.2)}return false}return true});
+  v.e=v.e.filter(o=>{const d=D(p.x-o.x,p.y-o.y);if(d>1){o.x+=(p.x-o.x)/d*2;o.y+=(p.y-o.y)/d*2}if(d<p.r+o.r){sHurt(p.mh*.25);return false}return true});
+ }
+ const cx=cp(p.x-W/2,0,WW-W),cy=cp(p.y-H/2,0,WH-H);
+ X.fillStyle='#141923';X.fillRect(0,0,W,H);const bi=I('large_bg');if(bi)X.drawImage(bi,-cx,-cy,WW,WH);
+ else for(let x=-cx%100;x<W;x+=100)line(x,0,x,H,'#1e2837',1),line(0,-cy%100,W,-cy%100,'#1e2837',1);
+ if(!bi)for(let y=-cy%100;y<H;y+=100)line(0,y,W,y,'#1e2837',1);
+ v.a.forEach(o=>spr('virus_1',o.x-cx,o.y-cy,32,32,'#0f0'));v.e.forEach(o=>spr('virus_2',o.x-cx,o.y-cy,40,40,'#f33'));
+ v.bl.forEach(o=>circ(o.x-cx,o.y-cy,8,'#ff6400','#fff'));v.ls.forEach(o=>{line(o.x-cx,o.y-cy,o.ex-cx,o.ey-cy,'#ff0096',10);line(o.x-cx,o.y-cy,o.ex-cx,o.ey-cy,'#0cf',4)});
+ if(v.boss){spr('boss',v.boss.x-cx,v.boss.y-cy,100,100,'#b432dc');circ(v.boss.x-cx,v.boss.y-cy,50,null,'#ffd700')}
+ X.globalAlpha=p.cd%6>2?.4:1;spr(p.lv<=5?'player_1':p.lv<=10?'player_2':'player_3',p.x-cx,p.y-cy,48,48,'#fff');X.globalAlpha=1;
+ box(15,15,260,60,'#282832cc','#fff');T('HP: '+Math.ceil(p.hp)+' / '+p.mh,30,35,18,'#fff','left');bar(30,50,230,p.hp,p.mh,'#f00');
+ box(W-235,15,220,75,'#282832cc','#fff');T(p.lv>=15?'MAX (15)':'Lv. '+p.lv,W-220,35,18,'#ffd700','left');T('Score: '+p.sc,W-130,35,18,'#fff','left');bar(W-220,60,190,p.lv>=15?1:p.xp,p.lv>=15?1:p.mx,'#0f0');
+ if(v.warn>0)T('⚠ 警告：病毒 3 發生強烈變異，解鎖激光攻擊！',W/2,120,24,'#f32');
+ T('WASD / 方向鍵移動・吃綠色病毒升級・ESC 返回',W/2,H-20,14,'#aaa');
+ if(v.over){X.fillStyle='#000a';X.fillRect(0,0,W,H);T(v.over==2?'勝利！吞噬了病毒 3':'GAME OVER',W/2,280,56,v.over==2?'#ffd700':'#f33');T('分數 '+p.sc+'　（點擊返回）',W/2,360,26)}};
+
+// ---------- 腸道塔防 ----------
+let G;
+const PA=[84,86,108,113,148,140,199,136,255,146,271,189,256,223,225,253,205,289,202,330,189,379,162,405,132,434,116,476,116,528,133,566,156,593,194,613,234,608,276,578,294,533,309,480,326,433,359,397,405,389,452,388,488,417,527,475,544,525,561,558,610,580,648,560,668,512,657,460,668,407,699,365,697,313,661,282,615,283,563,279,527,258,499,215,507,156,559,122,591,136,636,162,678,142,717,91];
+const SP=[150,224,121,284,141,343,191,536,220,465,267,445,346,333,609,222,664,229,529,340,581,343,583,457,606,396];
+const TT={1:[150,30,12,50,'#64c8ff','漿細胞'],2:[180,0,1,80,'#ff78c8','NK細胞'],3:[130,45,24,100,'#96ff78','巨噬細胞']};
+const EN={1:[2.2,120,20,60,'#ff6464'],2:[3.2,70,15,40,'#64ff64'],3:[1.4,250,35,100,'#b478ff']};
+function startTD(){G={tw:[],en:[],bl:[],t:0,sp:0,hp:100,e:120,sc:0,sel:1,st:0};scene='td'}
+S.td=()=>{const g=G;
+ if(P.includes('escape')){scene='select';return}
+ if(g.st&&cl){scene='select';return}
+ if(!g.st){
+  g.t++;if(++g.sp>=90){const y=1+Math.random()*3|0,d=EN[y];g.en.push({t:y,x:PA[0],y:PA[1],i:1,s:d[0],hp:d[1],m:d[1]});g.sp=0}
+  if(g.t%30==0&&g.e<200)g.e++;
+  g.en.forEach(o=>{const tx=PA[o.i*2],ty=PA[o.i*2+1],d=D(tx-o.x,ty-o.y);if(d<o.s){o.x=tx;o.y=ty;o.i++}else{o.x+=(tx-o.x)/d*o.s;o.y+=(ty-o.y)/d*o.s}});
+  g.en=g.en.filter(o=>{if(o.i*2>=PA.length){g.hp-=10;return false}if(o.hp<=0){g.e=Math.min(200,g.e+EN[o.t][2]);g.sc+=EN[o.t][3];snd(300);return false}return true});
+  g.tw.forEach(w=>{const d=TT[w.t];w.cd--;w.beam=null;
+   const o=g.en.find(o=>D(o.x-w.x,o.y-w.y)<=d[0]);if(!o)return;
+   if(w.t==2){if(g.t%180<120){o.hp-=d[2];w.beam=o}}
+   else if(w.cd<=0){g.bl.push({x:w.x,y:w.y,o,d:d[2]});w.cd=d[1]}});
+  g.bl.forEach(b=>{if(b.o.hp<=0){b.dead=1;return}const d=D(b.o.x-b.x,b.o.y-b.y);if(d<12){b.o.hp-=b.d;b.dead=1}else{b.x+=(b.o.x-b.x)/d*12;b.y+=(b.o.y-b.y)/d*12}});g.bl=g.bl.filter(b=>!b.dead);
+  if(g.hp<=0)g.st=2;if(g.sc>=2000)g.st=3;
+  if(cl){[1,2,3].forEach(t=>{const x=250+(t-1)*110;if(mx>x&&mx<x+100&&my>628&&my<688)g.sel=t});
+   for(let i=0;i<SP.length;i+=2){const sx=SP[i],sy=SP[i+1];if(D(mx-sx,my-sy)<28&&!g.tw.some(w=>w.x==sx&&w.y==sy)&&g.e>=TT[g.sel][3]){g.tw.push({x:sx,y:sy,t:g.sel,cd:0});g.e-=TT[g.sel][3];snd(500)}}}}
+ const bi=I('bg');if(bi)X.drawImage(bi,0,0,W,H);else{X.fillStyle='#14141e';X.fillRect(0,0,W,H);X.beginPath();X.moveTo(PA[0],PA[1]);for(let i=2;i<PA.length;i+=2)X.lineTo(PA[i],PA[i+1]);X.strokeStyle='#5a2a2a';X.lineWidth=36;X.lineJoin='round';X.stroke()}
+ for(let i=0;i<SP.length;i+=2)circ(SP[i],SP[i+1],22,null,'#0cf');
+ g.tw.forEach(w=>{if(w.beam){line(w.x,w.y,w.beam.x,w.beam.y,'#64c8ff',6);line(w.x,w.y,w.beam.x,w.beam.y,'#fff',2)}spr('tower'+w.t,w.x,w.y,48,48,TT[w.t][4])});
+ g.bl.forEach(b=>circ(b.x,b.y,6,'#ff6','#fa0'));
+ g.en.forEach(o=>{spr('enemy'+o.t,o.x,o.y,42,42,EN[o.t][4]);box(o.x-15,o.y-27,30,4,'#282828',null,0);box(o.x-15,o.y-27,30*Math.max(0,o.hp/o.m),4,'#00e664',null,0)});
+ box(10,10,200,80,'#000a','#fff');T('HP',25,30,14,'#fff','left');bar(50,25,150,g.hp,100,'#f00');T('能量 '+g.e,25,65,14,'#fff','left');bar(75,60,125,g.e,200,'#3264ff');
+ box(W/2-110,8,220,36,'#14141e','#0cf');T('SCORE: '+Math.min(g.sc,2000)+' / 2000',W/2,26,20);
+ [1,2,3].forEach(t=>{const x=250+(t-1)*110,d=TT[t];box(x,628,100,60,'#322d28',g.sel==t?'#0cf':'#777');T(d[5],x+50,645,14);T('費用 '+d[3],x+50,670,13,g.e>=d[3]?'#ff0':'#f66')});
+ if(g.st){X.fillStyle='#000b';X.fillRect(0,0,W,H);T(g.st==2?'GAME OVER':'腸道關卡 通關！',W/2,300,g.st==2?64:52,g.st==2?'#f33':'#ffe63c');T('點擊回到關卡選擇',W/2,400,24)}};
+
+// ---------- 病毒百科 ----------
+const WK=[['流感病毒','肺部防護戰','秋冬盛行，突然高燒、頭痛、全身痠痛，繁殖快又愛變身。','每年打流感疫苗、勤洗手、戴口罩、教室多通風。','遊戲：【疫苗】可回復基地 50 點生命值。'],
+['鼻病毒','肺部防護戰','普通感冒的頭號大王，打噴嚏、流鼻水、鼻塞。','不怕一般酒精，必須用肥皂和清水徹底洗手。','遊戲：【肥皂】清除所有鼻病毒，【酒精】對它沒用。'],
+['RSV 呼吸道融合病毒','肺部防護戰','冬春活躍，專挑 2 歲以下寶寶，會咳嗽、喘鳴。','勤洗手、保持通風，大人不要亂親小寶寶。',''],
+['副流感病毒 & COVID-19','肺部防護戰','副流感像穿外套的小魔鬼；COVID-19 會發燒、咳嗽、喉嚨痛。','副流感的外套可被酒精拆掉；COVID-19 可接種疫苗保護。','遊戲：穿外套只受 1/4 傷害，先用【酒精】拆掉。'],
+['漿細胞','腸道關卡','B 細胞變身，專門大量製造抗體，像小鑰匙黏住病毒做記號。','均衡飲食、充足睡眠、接種疫苗。','遊戲：費用 50、射程 150，連射小子彈，傷害 12。'],
+['自然殺手細胞 NK','腸道關卡','天生的巡邏警察，發現被感染的細胞就處理掉。','規律運動、不熬夜、保持好心情。','遊戲：費用 80、射程 180，雷射 2 秒、休息 1 秒。'],
+['巨噬細胞','腸道關卡','「大胃王」，吞噬細菌、病毒與壞死細胞，還會呼叫其他免疫細胞。','勤洗手、清潔傷口，減輕它的工作量。','遊戲：費用 100、射程 130，射得慢但傷害 24。'],
+['腺病毒','吞噬生存戰','幼兒常見，喉嚨痛、發燒、咳嗽，有時紅眼症。','不怕酒精，要用肥皂洗手；常清潔玩具、門把。','遊戲：不會動，吃掉 +50 分、+20 經驗、回血 10。'],
+['諾羅病毒','吞噬生存戰','傳染力超強，嘔吐、拉肚子、肚子痛。','肥皂洗手、食物煮熟、嘔吐物用稀釋漂白水消毒。','遊戲：會追著你跑，最多 5 隻，碰到扣 25% 最大血量。']];
+let wsel=0;
+S.wiki=()=>{bg();X.fillStyle='#0009';X.fillRect(0,0,W,H);T('常見兒童病毒與防疫寶典',W/2,40,36,'#ff0');
+ WK.forEach((e,i)=>{const y=85+i*56,o=mx>20&&mx<250&&my>y&&my<y+50;box(20,y,230,50,'#14141c',wsel==i?'#0cf':o?'#ff0':'#6e6e78',8);T(e[0],135,y+25,e[0].length>8?15:18);if(o&&cl)wsel=i});
+ const e=WK[wsel];box(270,85,510,500,'#0f0f19ee','#0cf',12);T(e[0],290,120,30,'#0cf','left');T(e[1],290,160,16,'#aaa','left');
+ let y=200;T('【 症狀與特色 】',290,y,20,'#fa0','left');y=wrap(e[2],290,y+30,470,17,'#fff');
+ T('【 防護招式 】',290,y+14,20,'#0f0','left');y=wrap(e[3],290,y+44,470,17,'#fff');
+ if(e[4]){T('【 遊戲中的用法 】',290,y+14,20,'#0cf','left');wrap(e[4],290,y+44,470,17,'#fff')}
+ if(B(300,630,200,45,'返回主畫面',20)||P.includes('escape'))scene='menu'};
+
+// ---------- 主迴圈 ----------
+let last=0;
+function loop(t){requestAnimationFrame(loop);if(t-last<15.5)return;last=t;
+ cl=clicks.length?clicks.shift():null;clicks.length=0;X.clearRect(0,0,W,H);S[scene]();P.length=0}
+requestAnimationFrame(loop);
+</script></body></html>
